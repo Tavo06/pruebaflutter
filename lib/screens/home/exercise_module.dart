@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../exercises/dashboard_generico/dashboard_generico_page.dart';
 
 /// Módulo del ejercicio: contenido REEMPLAZABLE de la sección «Inicio».
 ///
@@ -14,6 +15,6 @@ class ExerciseModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Ejemplo: return const CalculadoraNotasPage();
-    return const SizedBox.shrink();
+    return const DashboardGenericoPage();
   }
 }
