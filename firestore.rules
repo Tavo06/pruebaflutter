@@ -1,0 +1,113 @@
+rules_version = '2';
+
+// Reglas de seguridad de FlowApp (privilegio mínimo).
+//
+// Colecciones:
+//   users/{uid}  Perfil del usuario. Solo su dueño puede leerlo y modificarlo.
+//   dnis/{dni}   Índice de unicidad del DNI: { uid }. Se crea en el mismo lote
+//                que el perfil. Como un documento existente no puede volver a
+//                "crearse", dos registros con el mismo DNI nunca prosperan,
+//                ni siquiera si llegan a la vez.
+//
+// No se guardan contraseñas ni credenciales en Firestore.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function validName(v) {
+      return v is string && v.size() >= 2 && v.size() <= 50
+        && !v.matches('.*[0-9].*');
+    }
+
+    function validDni(v) {
+      return v is string && v.matches('^[0-9]{8}$');
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function dniPath(dni) {
+      return /databases/$(database)/documents/dnis/$(dni);
+    }
+
+    function profileKeys() {
+      return ['uid', 'nombre', 'apellido', 'dni', 'fechaNacimiento', 'correo',
+              'createdAt', 'updatedAt', 'registroCompleto'];
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow list: if false;
+
+      // Alta del perfil pendiente, junto con la reserva del DNI.
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(profileKeys())
+        && request.resource.data.keys().hasAll(profileKeys())
+        && request.resource.data.uid == uid
+        && request.resource.data.correo == request.auth.token.email
+        && validName(request.resource.data.nombre)
+        && validName(request.resource.data.apellido)
+        && validDni(request.resource.data.dni)
+        && request.resource.data.fechaNacimiento is timestamp
+        && request.resource.data.fechaNacimiento < request.time
+        && request.resource.data.fechaNacimiento > timestamp.date(1900, 1, 1)
+        && request.resource.data.registroCompleto == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && getAfter(dniPath(request.resource.data.dni)).data.uid == uid;
+
+      // Actualización: solo nombre, apellido, updatedAt y registroCompleto.
+      // registroCompleto solo puede pasar a true con el correo verificado y
+      // nunca vuelve a false.
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['nombre', 'apellido', 'updatedAt', 'registroCompleto'])
+        && validName(request.resource.data.nombre)
+        && validName(request.resource.data.apellido)
+        && request.resource.data.updatedAt == request.time
+        && (
+          request.resource.data.registroCompleto == resource.data.registroCompleto
+          || (resource.data.registroCompleto == false
+              && request.resource.data.registroCompleto == true
+              && request.auth.token.email_verified == true)
+        );
+
+      // Solo se pueden eliminar registros sin completar (cancelación).
+      allow delete: if isOwner(uid)
+        && resource.data.registroCompleto == false
+        && !existsAfter(dniPath(resource.data.dni));
+    }
+
+    match /dnis/{dni} {
+      allow get: if signedIn() && resource.data.uid == request.auth.uid;
+      allow list: if false;
+
+      // Solo se reserva el DNI del propio perfil, en el mismo lote.
+      allow create: if signedIn()
+        && validDni(dni)
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(userPath(request.auth.uid)).data.dni == dni;
+
+      allow update: if false;
+
+      // Se libera junto con la eliminación del perfil pendiente.
+      allow delete: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && !existsAfter(userPath(request.auth.uid));
+    }
+
+    // Todo lo demás queda denegado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

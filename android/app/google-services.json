@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "741975390703",
+    "project_id": "parcialflutter-b50cf",
+    "storage_bucket": "parcialflutter-b50cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:741975390703:android:23188dcaab2dc4b26b9e1a",
+        "android_client_info": {
+          "package_name": "com.example.proyectoflutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyByiwV5C19gjGhfjV11kFBr4Q9mu4vMdoE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
