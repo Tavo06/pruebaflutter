@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:proyectoflutter/app.dart';
 import 'package:proyectoflutter/core/theme/app_theme.dart';
+import 'package:proyectoflutter/exercises/finanzas/providers/movimientos_provider.dart';
 import 'package:proyectoflutter/models/user_profile.dart';
 import 'package:proyectoflutter/providers/auth_provider.dart';
 import 'package:proyectoflutter/providers/theme_provider.dart';
@@ -71,6 +72,7 @@ Widget buildTestApp(AuthProvider auth) => MultiProvider(
   providers: [
     ChangeNotifierProvider(create: (_) => ThemeProvider(null)),
     ChangeNotifierProvider.value(value: auth),
+    ChangeNotifierProvider(create: (_) => MovimientosProvider()),
   ],
   child: const FlowApp(),
 );

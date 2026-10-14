@@ -291,9 +291,55 @@ void main() {
 
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byKey(const Key('sidebar_logout')), findsNothing);
+      // «Mis datos» no está en la barra inferior: se abre desde el menú.
+      await tester.tap(find.byKey(const Key('user_menu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Mis datos'));
       await tester.pumpAndSettle();
       expect(find.text('Datos personales'), findsOneWidget);
+    });
+
+    testWidgets('finanzas: Inicio → Nuevo → guardar → Historial', (
+      tester,
+    ) async {
+      await setSize(tester, const Size(390, 844));
+      final b = await signedInBackend(verified: true, complete: true);
+      final p = await providerFor(tester, b);
+      await tester.pumpWidget(buildTestApp(p));
+      await tester.pumpAndSettle();
+
+      // Barra inferior → Nuevo.
+      await tester.tap(find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Nuevo'),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('Registrar movimiento'), findsOneWidget);
+
+      // Guardar vacío muestra los errores de validación.
+      await tester.ensureVisible(find.text('Guardar gasto'));
+      await tester.tap(find.text('Guardar gasto'));
+      await tester.pumpAndSettle();
+      expect(find.text('Selecciona una categoría.'), findsOneWidget);
+      expect(find.text('Ingresa una descripción.'), findsOneWidget);
+      expect(find.text('Ingresa el monto.'), findsOneWidget);
+
+      // Completar el formulario.
+      await tester.ensureVisible(find.text('Selecciona una categoría'));
+      await tester.tap(find.text('Selecciona una categoría'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salud').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(0), 'Farmacia');
+      await tester.enterText(find.byType(TextFormField).at(1), '35.5');
+      await tester.ensureVisible(find.text('Guardar gasto'));
+      await tester.tap(find.text('Guardar gasto'));
+      await tester.pumpAndSettle();
+
+      // Navega solo al Historial y el movimiento aparece en la lista.
+      expect(find.text('Todos los movimientos'), findsOneWidget);
+      expect(find.text('Farmacia'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -314,7 +360,14 @@ void main() {
         await tester.pumpWidget(buildTestApp(p));
         await tester.pumpAndSettle();
 
-        for (final label in ['Mi perfil', 'Mis datos', 'Inicio']) {
+        for (final label in [
+          'Nuevo movimiento',
+          'Historial',
+          'Resumen',
+          'Mi perfil',
+          'Mis datos',
+          'Inicio',
+        ]) {
           final target = find.text(label);
           if (target.evaluate().isNotEmpty) {
             await tester.tap(target.first);

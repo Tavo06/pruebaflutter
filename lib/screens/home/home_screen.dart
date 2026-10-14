@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../../core/constants/breakpoints.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../exercises/finanzas/screens/historial_view.dart';
+import '../../exercises/finanzas/screens/nuevo_movimiento_view.dart';
+import '../../exercises/finanzas/screens/resumen_view.dart';
 import '../../models/user_profile.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_logo.dart';
@@ -16,24 +19,65 @@ import 'exercise_module.dart';
 /// Secciones de la navegación principal.
 ///
 /// Para añadir una sección permanente, agrega un valor aquí y su vista en
-/// [_HomeScreenState._buildSection].
+/// [_HomeScreenState._buildSection]. El orden es el orden del menú.
 enum HomeSection {
   inicio('Inicio', Icons.space_dashboard_outlined, Icons.space_dashboard),
+  // Secciones del ejercicio de finanzas.
+  nuevo(
+    'Nuevo movimiento',
+    Icons.add_circle_outline_rounded,
+    Icons.add_circle_rounded,
+    shortLabel: 'Nuevo',
+  ),
+  historial('Historial', Icons.receipt_long_outlined, Icons.receipt_long),
+  resumen('Resumen', Icons.pie_chart_outline_rounded, Icons.pie_chart_rounded),
+  // Secciones de la cuenta.
   perfil('Mi perfil', Icons.person_outline_rounded, Icons.person_rounded),
-  datos('Mis datos', Icons.badge_outlined, Icons.badge_rounded),
-  configuracion('Configuración', Icons.settings_outlined, Icons.settings);
+  datos(
+    'Mis datos',
+    Icons.badge_outlined,
+    Icons.badge_rounded,
+    inBottomBar: false,
+  ),
+  configuracion(
+    'Configuración',
+    Icons.settings_outlined,
+    Icons.settings,
+    inBottomBar: false,
+  );
 
-  const HomeSection(this.label, this.icon, this.selectedIcon);
+  const HomeSection(
+    this.label,
+    this.icon,
+    this.selectedIcon, {
+    this.shortLabel,
+    this.inBottomBar = true,
+  });
 
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+
+  /// Texto más corto para la barra inferior del móvil.
+  final String? shortLabel;
+
+  /// En móvil caben ~5 secciones abajo; las demás se abren desde el menú de
+  /// usuario (avatar, arriba a la derecha).
+  final bool inBottomBar;
+
+  static List<HomeSection> get bottomBar =>
+      values.where((s) => s.inBottomBar).toList();
 }
 
 /// Estructura permanente del área privada: navegación, barra superior y
 /// contenedor de la sección activa. Solo se construye con sesión completa.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  /// Cambia de sección desde cualquier vista hija, por ejemplo:
+  ///   HomeScreen.irA(context, HomeSection.historial);
+  static void irA(BuildContext context, HomeSection section) =>
+      context.findAncestorStateOfType<_HomeScreenState>()?._select(section);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -50,6 +94,12 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (_section) {
       case HomeSection.inicio:
         return _DashboardView(profile: profile);
+      case HomeSection.nuevo:
+        return const NuevoMovimientoView();
+      case HomeSection.historial:
+        return const HistorialView();
+      case HomeSection.resumen:
+        return const ResumenView();
       case HomeSection.perfil:
         return ProfileScreen(profile: profile);
       case HomeSection.datos:
@@ -85,17 +135,23 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
         if (size == ScreenSize.mobile) {
+          final items = HomeSection.bottomBar;
+          // Las secciones que no están abajo (Mis datos, Configuración)
+          // marcan «Mi perfil», que es la sección de la cuenta.
+          final index = items.contains(_section)
+              ? items.indexOf(_section)
+              : items.indexOf(HomeSection.perfil);
           return Scaffold(
             body: body,
             bottomNavigationBar: NavigationBar(
-              selectedIndex: _section.index,
-              onDestinationSelected: (i) => _select(HomeSection.values[i]),
+              selectedIndex: index,
+              onDestinationSelected: (i) => _select(items[i]),
               destinations: [
-                for (final s in HomeSection.values)
+                for (final s in items)
                   NavigationDestination(
                     icon: Icon(s.icon),
                     selectedIcon: Icon(s.selectedIcon),
-                    label: s == HomeSection.configuracion ? 'Ajustes' : s.label,
+                    label: s.shortLabel ?? s.label,
                   ),
               ],
             ),
@@ -280,7 +336,7 @@ class _SidebarItem extends StatelessWidget {
 // Área principal con barra superior
 // -----------------------------------------------------------------------------
 
-enum _UserMenuAction { perfil, configuracion, salir }
+enum _UserMenuAction { perfil, datos, configuracion, salir }
 
 class _MainArea extends StatelessWidget {
   const _MainArea({
@@ -336,6 +392,8 @@ class _MainArea extends StatelessWidget {
                     switch (a) {
                       case _UserMenuAction.perfil:
                         onSelect(HomeSection.perfil);
+                      case _UserMenuAction.datos:
+                        onSelect(HomeSection.datos);
                       case _UserMenuAction.configuracion:
                         onSelect(HomeSection.configuracion);
                       case _UserMenuAction.salir:
@@ -348,6 +406,14 @@ class _MainArea extends StatelessWidget {
                       child: ListTile(
                         leading: Icon(Icons.person_outline_rounded),
                         title: Text('Mi perfil'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _UserMenuAction.datos,
+                      child: ListTile(
+                        leading: Icon(Icons.badge_outlined),
+                        title: Text('Mis datos'),
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
