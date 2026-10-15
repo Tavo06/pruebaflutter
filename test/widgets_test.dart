@@ -2,9 +2,12 @@ import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proyectoflutter/providers/auth_provider.dart';
+import 'package:proyectoflutter/screens/auth/complete_profile_screen.dart';
 import 'package:proyectoflutter/screens/auth/create_password_modal.dart';
 import 'package:proyectoflutter/screens/auth/forgot_password_modal.dart';
 import 'package:proyectoflutter/screens/auth/register_modal.dart';
+import 'package:proyectoflutter/screens/home/home_screen.dart';
+import 'package:proyectoflutter/widgets/status_banner.dart';
 
 import 'helpers.dart';
 
@@ -94,7 +97,122 @@ void main() {
       final p = await providerFor(tester, TestBackend());
       await tester.pumpWidget(buildTestApp(p));
       await tester.pumpAndSettle();
-      expect(find.text('Organiza tu trabajo\ncon fluidez.'), findsOneWidget);
+      expect(find.text('Te damos la\nbienvenida.'), findsOneWidget);
+    });
+
+    testWidgets('botón de Google y separador en el login', (tester) async {
+      await setSize(tester, const Size(400, 900));
+      final p = await providerFor(tester, TestBackend());
+      await tester.pumpWidget(buildTestApp(p));
+      await tester.pumpAndSettle();
+      expect(find.text('Continuar con Google'), findsOneWidget);
+      expect(find.text('o continúa con tu correo'), findsOneWidget);
+    });
+
+    testWidgets('cancelar Google no muestra error ni bloquea la interfaz', (
+      tester,
+    ) async {
+      await setSize(tester, const Size(400, 900));
+      final b = TestBackend(
+        google: FakeGoogleDelegate(outcome: GoogleOutcome.cancel),
+      );
+      final p = await providerFor(tester, b);
+      await tester.pumpWidget(buildTestApp(p));
+      await tester.pumpAndSettle();
+
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const Key('google_sign_in')));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+      expect(b.google.calls, 1);
+      expect(find.byType(StatusBanner), findsNothing);
+      final button = tester.widget<OutlinedButton>(
+        find.byKey(const Key('google_sign_in')),
+      );
+      expect(button.onPressed, isNotNull);
+      expect(find.byKey(const Key('login_submit')), findsOneWidget);
+    });
+
+    testWidgets('error de configuración de Google se muestra al usuario', (
+      tester,
+    ) async {
+      await setSize(tester, const Size(400, 900));
+      final b = TestBackend(
+        google: FakeGoogleDelegate(
+          outcome: GoogleOutcome.error,
+          errorCode: 'operation-not-allowed',
+        ),
+      );
+      final p = await providerFor(tester, b);
+      await tester.pumpWidget(buildTestApp(p));
+      await tester.pumpAndSettle();
+
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const Key('google_sign_in')));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Google no está habilitado'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Google desde el registro lleva a «Completa tu perfil»', (
+      tester,
+    ) async {
+      await setSize(tester, const Size(1280, 900));
+      final b = TestBackend(user: googleUser(), signedIn: false);
+      final p = await providerFor(tester, b);
+      await tester.pumpWidget(buildTestApp(p));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('login_register')));
+      await tester.pumpAndSettle();
+      final inModal = find.descendant(
+        of: find.byType(RegisterModal),
+        matching: find.byKey(const Key('google_sign_in')),
+      );
+      expect(inModal, findsOneWidget);
+      await tester.runAsync(() async {
+        await tester.tap(inModal);
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      });
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RegisterModal), findsNothing);
+      expect(find.byType(CompleteProfileScreen), findsOneWidget);
+      expect(find.text('¡Hola, Lucía!'), findsNothing);
+      // Los datos de Google se proponen, pero el DNI y el teléfono no.
+      expect(find.text('Lucía'), findsOneWidget);
+      final phone = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byKey(const Key('profile_telefono')),
+          matching: find.byType(EditableText),
+        ),
+      );
+      expect(phone.controller.text, isEmpty);
+    });
+  });
+
+  group('Perfil pendiente de Google', () {
+    testWidgets('exige DNI, fecha y teléfono válidos', (tester) async {
+      await setSize(tester, const Size(800, 1100));
+      final b = TestBackend(user: googleUser(), signedIn: false);
+      final p = await providerFor(tester, b);
+      await tester.runAsync(() => p.signInWithGoogle());
+      await tester.pumpWidget(buildTestApp(p));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byKey(const Key('profile_submit')));
+      await tester.tap(find.byKey(const Key('profile_submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('Ingresa tu DNI.'), findsOneWidget);
+      expect(find.text('Selecciona tu fecha de nacimiento.'), findsOneWidget);
+      expect(find.text('Ingresa tu número de teléfono.'), findsOneWidget);
+      expect(p.status, AuthStatus.pendingProfile);
+      await tester.pumpWidget(const SizedBox());
     });
   });
 
@@ -111,6 +229,7 @@ void main() {
       expect(find.text('Ingresa tu apellido.'), findsOneWidget);
       expect(find.text('Ingresa tu DNI.'), findsOneWidget);
       expect(find.text('Selecciona tu fecha de nacimiento.'), findsOneWidget);
+      expect(find.text('Ingresa tu número de teléfono.'), findsOneWidget);
       expect(find.text('Ingresa tu correo electrónico.'), findsOneWidget);
 
       await tester.enterText(find.byKey(const Key('register_nombre')), 'Juan2');
@@ -141,6 +260,53 @@ void main() {
         ),
       );
       expect(field.controller.text, '12345678');
+    });
+
+    testWidgets('teléfono: solo dígitos, máximo 9 y teclado numérico', (
+      tester,
+    ) async {
+      await setSize(tester, const Size(800, 1100));
+      final p = await providerFor(tester, TestBackend());
+      await tester.pumpWidget(wrapWidget(p, const RegisterModal()));
+      await tester.pumpAndSettle();
+
+      final phone = find.byKey(const Key('register_telefono'));
+      EditableText field() => tester.widget<EditableText>(
+        find.descendant(of: phone, matching: find.byType(EditableText)),
+      );
+      expect(field().keyboardType, TextInputType.number);
+
+      // Letras, espacios, guiones y símbolos se descartan al escribir.
+      await tester.enterText(phone, '98a7 6-5+4#');
+      await tester.pumpAndSettle();
+      expect(field().controller.text, '987654');
+      expect(
+        find.text('El número de teléfono debe tener exactamente 9 dígitos.'),
+        findsOneWidget,
+      );
+
+      // Ocho dígitos: error.
+      await tester.enterText(phone, '98765432');
+      await tester.pumpAndSettle();
+      expect(
+        find.text('El número de teléfono debe tener exactamente 9 dígitos.'),
+        findsOneWidget,
+      );
+
+      // Diez dígitos: se limita a nueve y es válido.
+      await tester.enterText(phone, '9876543210');
+      await tester.pumpAndSettle();
+      expect(field().controller.text, '987654321');
+      expect(find.textContaining('número de teléfono'), findsNothing);
+    });
+
+    testWidgets('incluye el botón de Google y el separador', (tester) async {
+      await setSize(tester, const Size(800, 1100));
+      final p = await providerFor(tester, TestBackend());
+      await tester.pumpWidget(wrapWidget(p, const RegisterModal()));
+      await tester.pumpAndSettle();
+      expect(find.text('Continuar con Google'), findsOneWidget);
+      expect(find.text('o continúa con tu correo'), findsOneWidget);
     });
 
     testWidgets('la fecha se elige con el selector en dd/MM/yyyy', (
@@ -299,47 +465,77 @@ void main() {
       expect(find.text('Datos personales'), findsOneWidget);
     });
 
-    testWidgets('finanzas: Inicio → Nuevo → guardar → Historial', (
+    testWidgets('dashboard limpio: espacio de trabajo sin datos ficticios', (
       tester,
     ) async {
-      await setSize(tester, const Size(390, 844));
+      await setSize(tester, const Size(1440, 900));
       final b = await signedInBackend(verified: true, complete: true);
       final p = await providerFor(tester, b);
       await tester.pumpWidget(buildTestApp(p));
       await tester.pumpAndSettle();
 
-      // Barra inferior → Nuevo.
-      await tester.tap(find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.text('Nuevo'),
-      ));
-      await tester.pumpAndSettle();
-      expect(find.text('Registrar movimiento'), findsOneWidget);
+      expect(find.byKey(const Key('workspace_placeholder')), findsOneWidget);
+      expect(find.text('Espacio de trabajo'), findsOneWidget);
+      expect(
+        find.text('Aquí podrás implementar el ejercicio que necesites.'),
+        findsOneWidget,
+      );
+      for (final t in ['Nuevo movimiento', 'Historial', 'Resumen', 'Saldo']) {
+        expect(find.textContaining(t), findsNothing);
+      }
+      // Con teléfono registrado no aparece el aviso.
+      expect(find.byKey(const Key('add_phone')), findsNothing);
+    });
 
-      // Guardar vacío muestra los errores de validación.
-      await tester.ensureVisible(find.text('Guardar gasto'));
-      await tester.tap(find.text('Guardar gasto'));
-      await tester.pumpAndSettle();
-      expect(find.text('Selecciona una categoría.'), findsOneWidget);
-      expect(find.text('Ingresa una descripción.'), findsOneWidget);
-      expect(find.text('Ingresa el monto.'), findsOneWidget);
-
-      // Completar el formulario.
-      await tester.ensureVisible(find.text('Selecciona una categoría'));
-      await tester.tap(find.text('Selecciona una categoría'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Salud').last);
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).at(0), 'Farmacia');
-      await tester.enterText(find.byType(TextFormField).at(1), '35.5');
-      await tester.ensureVisible(find.text('Guardar gasto'));
-      await tester.tap(find.text('Guardar gasto'));
+    testWidgets('perfil antiguo sin teléfono: aviso y edición en Mis datos', (
+      tester,
+    ) async {
+      await setSize(tester, const Size(1440, 900));
+      final b = TestBackend(
+        user: MockUser(uid: 'u1', email: 'ana@correo.com'),
+      );
+      await b.seedProfile('u1', registroCompleto: true, telefono: null);
+      final p = await providerFor(tester, b);
+      await tester.pumpWidget(buildTestApp(p));
       await tester.pumpAndSettle();
 
-      // Navega solo al Historial y el movimiento aparece en la lista.
-      expect(find.text('Todos los movimientos'), findsOneWidget);
-      expect(find.text('Farmacia'), findsOneWidget);
-      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const Key('add_phone')));
+      await tester.pumpAndSettle();
+      expect(find.text('Datos personales'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('data_telefono')), '12345');
+      await tester.pumpAndSettle();
+      expect(
+        find.text('El número de teléfono debe tener exactamente 9 dígitos.'),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.byKey(const Key('data_telefono')),
+        '923456789',
+      );
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const Key('data_save')));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Tus datos se guardaron correctamente.'), findsOneWidget);
+      expect((await b.userDoc('u1'))!['telefono'], '923456789');
+      expect((await b.userDoc('u1'))!['dni'], '12345678');
+    });
+
+    testWidgets('el tema se cambia desde la barra superior', (tester) async {
+      await setSize(tester, const Size(1440, 900));
+      final b = await signedInBackend(verified: true, complete: true);
+      final p = await providerFor(tester, b);
+      await tester.pumpWidget(buildTestApp(p));
+      await tester.pumpAndSettle();
+      expect(Theme.of(tester.element(find.byType(HomeScreen))).brightness,
+          Brightness.light);
+      await tester.tap(find.byKey(const Key('theme_toggle')));
+      await tester.pumpAndSettle();
+      expect(Theme.of(tester.element(find.byType(HomeScreen))).brightness,
+          Brightness.dark);
     });
   });
 
@@ -347,8 +543,10 @@ void main() {
     for (final size in const [
       Size(320, 640),
       Size(390, 844),
+      Size(600, 960),
       Size(768, 1024),
       Size(1024, 700),
+      Size(1440, 900),
       Size(1920, 1080),
     ]) {
       testWidgets('login y secciones a ${size.width.toInt()}px', (
@@ -361,11 +559,10 @@ void main() {
         await tester.pumpAndSettle();
 
         for (final label in [
-          'Nuevo movimiento',
-          'Historial',
-          'Resumen',
           'Mi perfil',
+          'Perfil',
           'Mis datos',
+          'Datos',
           'Inicio',
         ]) {
           final target = find.text(label);

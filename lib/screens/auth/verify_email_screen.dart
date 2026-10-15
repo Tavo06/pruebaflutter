@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/breakpoints.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_exception.dart';
 import '../../providers/auth_provider.dart';
@@ -334,6 +333,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(AppRadius.lg),
+                        border: Border.all(color: context.palette.border),
                         boxShadow: AppShadows.soft(context),
                       ),
                       child: content,
@@ -425,27 +425,20 @@ class _EnvelopeIllustration extends StatelessWidget {
               height: 104,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.08),
+                color: context.palette.subtleFill,
               ),
             ),
             Container(
-              width: 76,
-              height: 76,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                gradient: AppColors.brandGradient,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.violet.withValues(alpha: 0.3),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(AppRadius.lg + 4),
               ),
-              child: const Icon(
-                Icons.mail_rounded,
-                color: Colors.white,
-                size: 38,
+              child: Icon(
+                Icons.mail_outline_rounded,
+                color: Theme.of(context).colorScheme.onPrimary,
+                size: 34,
               ),
             ),
             Positioned(

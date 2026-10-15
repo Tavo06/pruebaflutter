@@ -106,13 +106,28 @@ class ProfileScreen extends StatelessWidget {
                     _InfoTile(
                       icon: Icons.credit_card_outlined,
                       label: 'DNI',
-                      value: _maskDni(profile.dni),
+                      value: profile.dni == null ? '—' : _maskDni(profile.dni!),
                     ),
                     const Divider(height: 1, indent: 64),
                     _InfoTile(
                       icon: Icons.cake_outlined,
                       label: 'Fecha de nacimiento',
-                      value: dateFmt.format(profile.fechaNacimiento),
+                      value: profile.fechaNacimiento == null
+                          ? '—'
+                          : dateFmt.format(profile.fechaNacimiento!),
+                    ),
+                    const Divider(height: 1, indent: 64),
+                    _InfoTile(
+                      icon: Icons.phone_outlined,
+                      label: 'Número de teléfono',
+                      value: profile.telefono ?? 'Sin registrar',
+                      action: profile.tieneTelefono
+                          ? null
+                          : TextButton(
+                              onPressed: () =>
+                                  HomeScreen.irA(context, HomeSection.datos),
+                              child: const Text('Añadir'),
+                            ),
                     ),
                     const Divider(height: 1, indent: 64),
                     _InfoTile(
@@ -145,11 +160,13 @@ class _InfoTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.action,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -163,6 +180,7 @@ class _InfoTile extends StatelessWidget {
           context,
         ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
       ),
+      trailing: action,
     );
   }
 }

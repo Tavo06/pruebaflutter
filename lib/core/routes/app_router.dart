@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../screens/auth/complete_profile_screen.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/verify_email_screen.dart';
 import '../../screens/home/home_screen.dart';
@@ -42,6 +43,7 @@ class AuthGate extends StatelessWidget {
       AuthStatus.unauthenticated => const LoginScreen(),
       AuthStatus.pendingVerification ||
       AuthStatus.pendingPassword => const VerifyEmailScreen(),
+      AuthStatus.pendingProfile => const CompleteProfileScreen(),
       AuthStatus.authenticated => const HomeScreen(),
     };
 

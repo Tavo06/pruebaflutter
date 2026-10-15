@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme/app_colors.dart';
 import '../core/theme/app_theme.dart';
 
 enum StatusType { success, info, warning, error }
@@ -15,11 +14,12 @@ class StatusBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final scheme = Theme.of(context).colorScheme;
     final (Color color, IconData icon) = switch (type) {
       StatusType.success => (palette.success, Icons.check_circle_rounded),
-      StatusType.info => (AppColors.primary, Icons.info_rounded),
+      StatusType.info => (scheme.primary, Icons.info_rounded),
       StatusType.warning => (palette.warning, Icons.warning_amber_rounded),
-      StatusType.error => (AppColors.error, Icons.error_rounded),
+      StatusType.error => (scheme.error, Icons.error_rounded),
     };
 
     return Semantics(

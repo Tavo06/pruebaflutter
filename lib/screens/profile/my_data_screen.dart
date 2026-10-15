@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/constants/breakpoints.dart';
 import '../../core/utils/app_exception.dart';
 import '../../core/validators/validators.dart';
 import '../../models/user_profile.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/personal_data_fields.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/responsive_layout.dart';
 import '../../widgets/status_banner.dart';
 
-/// Datos personales. Nombre y apellido son editables; DNI, fecha de
+/// Datos personales. Nombre, apellido y teléfono son editables; DNI, fecha de
 /// nacimiento y correo son de solo lectura (las reglas de Firestore impiden
 /// modificarlos).
 class MyDataScreen extends StatefulWidget {
@@ -31,6 +31,9 @@ class _MyDataScreenState extends State<MyDataScreen> {
   late final _apellidoCtrl = TextEditingController(
     text: widget.profile.apellido,
   );
+  late final _telefonoCtrl = TextEditingController(
+    text: widget.profile.telefono,
+  );
   bool _saving = false;
   String? _message;
   StatusType _messageType = StatusType.success;
@@ -39,12 +42,25 @@ class _MyDataScreenState extends State<MyDataScreen> {
   void dispose() {
     _nombreCtrl.dispose();
     _apellidoCtrl.dispose();
+    _telefonoCtrl.dispose();
     super.dispose();
   }
 
+  String get _telefono => _telefonoCtrl.text;
+
+  bool get _phoneChanged => _telefono != (widget.profile.telefono ?? '');
+
   bool get _changed =>
       Validators.normalizeName(_nombreCtrl.text) != widget.profile.nombre ||
-      Validators.normalizeName(_apellidoCtrl.text) != widget.profile.apellido;
+      Validators.normalizeName(_apellidoCtrl.text) != widget.profile.apellido ||
+      _phoneChanged;
+
+  /// Los perfiles antiguos sin teléfono pueden guardar otros cambios dejando
+  /// el campo vacío; si se escribe algo, se valida igual que en el registro.
+  String? _validatePhone(String? value) {
+    if ((value ?? '').isEmpty && !widget.profile.tieneTelefono) return null;
+    return Validators.phone(value);
+  }
 
   Future<void> _save() async {
     if (_saving) return;
@@ -54,9 +70,11 @@ class _MyDataScreenState extends State<MyDataScreen> {
     try {
       final nombre = Validators.normalizeName(_nombreCtrl.text);
       final apellido = Validators.normalizeName(_apellidoCtrl.text);
-      await context.read<AuthProvider>().updateNames(
+      await context.read<AuthProvider>().updateProfileData(
         nombre: nombre,
         apellido: apellido,
+        // Solo se envía si cambió: los demás campos no se tocan.
+        telefono: _phoneChanged && _telefono.isNotEmpty ? _telefono : null,
       );
       if (mounted) {
         _nombreCtrl.text = nombre;
@@ -83,9 +101,10 @@ class _MyDataScreenState extends State<MyDataScreen> {
     final mobile = Breakpoints.isMobile(context);
     final p = widget.profile;
     final theme = Theme.of(context);
+    final fecha = p.fechaNacimiento;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(mobile ? 16 : 28),
+      padding: EdgeInsets.all(mobile ? 16 : 32),
       child: MaxWidthBox(
         maxWidth: 820,
         child: Card(
@@ -100,8 +119,8 @@ class _MyDataScreenState extends State<MyDataScreen> {
                   Text('Datos personales', style: theme.textTheme.titleLarge),
                   const SizedBox(height: 4),
                   Text(
-                    'Puedes actualizar tu nombre y apellido. Para modificar '
-                    'los demás datos, contacta al administrador.',
+                    'Puedes actualizar tu nombre, apellido y teléfono. Para '
+                    'modificar los demás datos, contacta al administrador.',
                     style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 20),
@@ -109,44 +128,48 @@ class _MyDataScreenState extends State<MyDataScreen> {
                     StatusBanner(message: _message!, type: _messageType),
                     const SizedBox(height: 16),
                   ],
+                  NameFields(
+                    nombre: _nombreCtrl,
+                    apellido: _apellidoCtrl,
+                    enabled: !_saving,
+                    keyPrefix: 'data',
+                  ),
+                  const SizedBox(height: 16),
                   _TwoColumns(
                     left: CustomTextField(
-                      label: 'Nombre',
-                      icon: Icons.badge_outlined,
-                      controller: _nombreCtrl,
-                      validator: Validators.firstName,
-                      maxLength: AppConstants.maxNameLength,
-                      textCapitalization: TextCapitalization.words,
+                      fieldKey: const Key('data_telefono'),
+                      label: 'Número de teléfono',
+                      hint: p.tieneTelefono ? null : 'Añade tu teléfono',
+                      icon: Icons.phone_outlined,
+                      controller: _telefonoCtrl,
+                      keyboardType: TextInputType.number,
+                      autofillHints: const [
+                        AutofillHints.telephoneNumberNational,
+                      ],
+                      inputFormatters: PhoneField.formatters,
+                      validator: _validatePhone,
                       enabled: !_saving,
                     ),
-                    right: CustomTextField(
-                      label: 'Apellido',
-                      icon: Icons.badge_outlined,
-                      controller: _apellidoCtrl,
-                      validator: Validators.lastName,
-                      maxLength: AppConstants.maxNameLength,
-                      textCapitalization: TextCapitalization.words,
-                      enabled: !_saving,
+                    right: _ReadOnlyField(
+                      label: 'DNI',
+                      icon: Icons.credit_card_outlined,
+                      value: p.dni ?? '—',
                     ),
                   ),
                   const SizedBox(height: 16),
                   _TwoColumns(
                     left: _ReadOnlyField(
-                      label: 'DNI',
-                      icon: Icons.credit_card_outlined,
-                      value: p.dni,
-                    ),
-                    right: _ReadOnlyField(
                       label: 'Fecha de nacimiento',
                       icon: Icons.calendar_today_outlined,
-                      value: DateFormat('dd/MM/yyyy').format(p.fechaNacimiento),
+                      value: fecha == null
+                          ? '—'
+                          : DateFormat('dd/MM/yyyy').format(fecha),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _ReadOnlyField(
-                    label: 'Correo electrónico',
-                    icon: Icons.mail_outline_rounded,
-                    value: p.correo,
+                    right: _ReadOnlyField(
+                      label: 'Correo electrónico',
+                      icon: Icons.mail_outline_rounded,
+                      value: p.correo,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Align(
@@ -156,6 +179,7 @@ class _MyDataScreenState extends State<MyDataScreen> {
                     child: SizedBox(
                       width: mobile ? double.infinity : 220,
                       child: PrimaryButton(
+                        key: const Key('data_save'),
                         label: 'Guardar cambios',
                         icon: Icons.save_outlined,
                         loading: _saving,

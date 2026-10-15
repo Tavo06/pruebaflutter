@@ -5,11 +5,21 @@ rules_version = '2';
 // Colecciones:
 //   users/{uid}  Perfil del usuario. Solo su dueño puede leerlo y modificarlo.
 //   dnis/{dni}   Índice de unicidad del DNI: { uid }. Se crea en el mismo lote
-//                que el perfil. Como un documento existente no puede volver a
-//                "crearse", dos registros con el mismo DNI nunca prosperan,
-//                ni siquiera si llegan a la vez.
+//                que el perfil (o que su finalización con Google). Como un
+//                documento existente no puede volver a «crearse», dos registros
+//                con el mismo DNI nunca prosperan, ni siquiera a la vez.
 //
-// No se guardan contraseñas ni credenciales en Firestore.
+// Flujos admitidos:
+//   1. Correo: perfil pendiente completo (con DNI y teléfono) → verificación
+//      del correo → `registroCompleto: true`.
+//   2. Google: perfil inicial solo con nombre y correo del proveedor →
+//      el usuario añade DNI, fecha y teléfono y se marca `registroCompleto`
+//      en el mismo lote.
+//   Los perfiles antiguos sin `telefono` siguen siendo legibles y pueden
+//   añadirlo después.
+//
+// No se guardan contraseñas ni credenciales en Firestore: `hasOnly` impide
+// cualquier campo no listado.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -21,13 +31,37 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function provider() {
+      return request.auth.token.firebase.sign_in_provider;
+    }
+
+    function emailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
     function validName(v) {
       return v is string && v.size() >= 2 && v.size() <= 50
         && !v.matches('.*[0-9].*');
     }
 
+    // Nombre sugerido por Google: puede venir vacío o incompleto; se valida
+    // con validName() cuando el usuario completa su perfil.
+    function validProviderName(v) {
+      return v is string && v.size() <= 50;
+    }
+
     function validDni(v) {
       return v is string && v.matches('^[0-9]{8}$');
+    }
+
+    function validPhone(v) {
+      return v is string && v.matches('^[0-9]{9}$');
+    }
+
+    function validBirthDate(v) {
+      return v is timestamp
+        && v < request.time
+        && v > timestamp.date(1900, 1, 1);
     }
 
     function userPath(uid) {
@@ -38,52 +72,103 @@ service cloud.firestore {
       return /databases/$(database)/documents/dnis/$(dni);
     }
 
-    function profileKeys() {
-      return ['uid', 'nombre', 'apellido', 'dni', 'fechaNacimiento', 'correo',
-              'createdAt', 'updatedAt', 'registroCompleto'];
+    function emailProfileKeys() {
+      return ['uid', 'nombre', 'apellido', 'dni', 'fechaNacimiento',
+              'telefono', 'correo', 'createdAt', 'updatedAt',
+              'registroCompleto'];
+    }
+
+    function googleProfileKeys() {
+      return ['uid', 'nombre', 'apellido', 'correo', 'createdAt', 'updatedAt',
+              'registroCompleto'];
+    }
+
+    function editableKeys() {
+      return ['nombre', 'apellido', 'telefono', 'dni', 'fechaNacimiento',
+              'updatedAt', 'registroCompleto'];
     }
 
     match /users/{uid} {
       allow get: if isOwner(uid);
       allow list: if false;
 
-      // Alta del perfil pendiente, junto con la reserva del DNI.
+      // Alta del perfil pendiente por correo, junto con la reserva del DNI.
       allow create: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(profileKeys())
-        && request.resource.data.keys().hasAll(profileKeys())
+        && provider() == 'password'
+        && request.resource.data.keys().hasOnly(emailProfileKeys())
+        && request.resource.data.keys().hasAll(emailProfileKeys())
         && request.resource.data.uid == uid
         && request.resource.data.correo == request.auth.token.email
         && validName(request.resource.data.nombre)
         && validName(request.resource.data.apellido)
         && validDni(request.resource.data.dni)
-        && request.resource.data.fechaNacimiento is timestamp
-        && request.resource.data.fechaNacimiento < request.time
-        && request.resource.data.fechaNacimiento > timestamp.date(1900, 1, 1)
+        && validBirthDate(request.resource.data.fechaNacimiento)
+        && validPhone(request.resource.data.telefono)
         && request.resource.data.registroCompleto == false
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && getAfter(dniPath(request.resource.data.dni)).data.uid == uid;
 
-      // Actualización: solo nombre, apellido, updatedAt y registroCompleto.
-      // registroCompleto solo puede pasar a true con el correo verificado y
-      // nunca vuelve a false.
+      // Alta del perfil inicial con Google: solo nombre y correo verificados
+      // por el proveedor. Nunca nace completo.
+      allow create: if isOwner(uid)
+        && provider() == 'google.com'
+        && emailVerified()
+        && request.resource.data.keys().hasOnly(googleProfileKeys())
+        && request.resource.data.keys().hasAll(googleProfileKeys())
+        && request.resource.data.uid == uid
+        && request.resource.data.correo == request.auth.token.email
+        && validProviderName(request.resource.data.nombre)
+        && validProviderName(request.resource.data.apellido)
+        && request.resource.data.registroCompleto == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      // Actualización:
+      // - nombre, apellido y teléfono son editables (siempre validados);
+      // - DNI y fecha solo pueden fijarse una vez, si faltan (perfil de
+      //   Google), reservando el DNI en el mismo lote; nunca se modifican;
+      // - registroCompleto solo pasa de false a true, con el correo verificado
+      //   y con DNI y fecha presentes (y teléfono si los datos se añaden en
+      //   esa misma operación). Nunca vuelve a false.
+      // uid, correo y createdAt no se pueden modificar.
       allow update: if isOwner(uid)
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['nombre', 'apellido', 'updatedAt', 'registroCompleto'])
+             .hasOnly(editableKeys())
         && validName(request.resource.data.nombre)
         && validName(request.resource.data.apellido)
+        && (!('telefono' in request.resource.data)
+            || validPhone(request.resource.data.telefono))
         && request.resource.data.updatedAt == request.time
-        && (
-          request.resource.data.registroCompleto == resource.data.registroCompleto
+        && personalDataRule()
+        && completionRule();
+
+      function personalDataRule() {
+        return !request.resource.data.diff(resource.data).affectedKeys()
+                  .hasAny(['dni', 'fechaNacimiento'])
+          || (!('dni' in resource.data)
+              && !('fechaNacimiento' in resource.data)
+              && validDni(request.resource.data.dni)
+              && validBirthDate(request.resource.data.fechaNacimiento)
+              && validPhone(request.resource.data.telefono)
+              && getAfter(dniPath(request.resource.data.dni)).data.uid == uid);
+      }
+
+      function completionRule() {
+        return request.resource.data.registroCompleto
+                 == resource.data.registroCompleto
           || (resource.data.registroCompleto == false
               && request.resource.data.registroCompleto == true
-              && request.auth.token.email_verified == true)
-        );
+              && emailVerified()
+              && validDni(request.resource.data.dni)
+              && request.resource.data.fechaNacimiento is timestamp);
+      }
 
       // Solo se pueden eliminar registros sin completar (cancelación).
       allow delete: if isOwner(uid)
         && resource.data.registroCompleto == false
-        && !existsAfter(dniPath(resource.data.dni));
+        && (!('dni' in resource.data)
+            || !existsAfter(dniPath(resource.data.dni)));
     }
 
     match /dnis/{dni} {

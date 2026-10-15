@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/breakpoints.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_exception.dart';
 import '../../core/validators/validators.dart';
@@ -12,6 +11,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/secondary_button.dart';
 import '../../widgets/status_banner.dart';
@@ -30,7 +30,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
+  bool _googleBusy = false;
   FlashMessage? _message;
+
+  bool get _busy => _loading || _googleBusy;
 
   @override
   void initState() {
@@ -48,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit() async {
-    if (_loading) return;
+    if (_busy) return;
     setState(() => _message = null);
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _loading = true);
@@ -70,6 +73,18 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordCtrl.clear();
         setState(() => _loading = false);
       }
+    }
+  }
+
+  void _onGoogleBusy(bool busy) {
+    setState(() {
+      _googleBusy = busy;
+      if (busy) _message = null;
+    });
+    if (!busy && mounted) {
+      // Avisos del proveedor (p. ej. correo de Google sin verificar).
+      final flash = context.read<AuthProvider>().takeFlash();
+      if (flash != null) setState(() => _message = flash);
     }
   }
 
@@ -114,9 +129,9 @@ class _LoginScreenState extends State<LoginScreen> {
           }
           return Row(
             children: [
-              const Expanded(flex: 11, child: _BrandPanel()),
+              const Expanded(flex: 10, child: _BrandPanel()),
               Expanded(
-                flex: 10,
+                flex: 11,
                 child: SafeArea(
                   child: Center(
                     child: SingleChildScrollView(
@@ -150,8 +165,8 @@ class _LoginScreenState extends State<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showLogo) ...[
-              const Center(child: AppLogo(size: 44)),
-              const SizedBox(height: 28),
+              const Center(child: AppLogo(size: 40)),
+              const SizedBox(height: 32),
             ],
             Text('Iniciar sesión', style: theme.textTheme.headlineMedium),
             const SizedBox(height: 6),
@@ -161,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 color: context.palette.textSecondary,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             AnimatedSize(
               duration: const Duration(milliseconds: 200),
               child: message == null
@@ -178,6 +193,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
             ),
+            GoogleSignInButton(
+              enabled: !_loading,
+              onBusyChanged: _onGoogleBusy,
+              onError: (m) => setState(
+                () => _message = FlashMessage(m, FlashType.error),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const LabeledDivider(text: 'o continúa con tu correo'),
+            const SizedBox(height: 20),
             CustomTextField(
               fieldKey: const Key('login_email'),
               label: 'Correo electrónico',
@@ -188,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.email],
               validator: Validators.email,
-              enabled: !_loading,
+              enabled: !_busy,
             ),
             const SizedBox(height: 16),
             CustomTextField(
@@ -202,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> {
               autofillHints: const [AutofillHints.password],
               validator: Validators.loginPassword,
               onSubmitted: (_) => _submit(),
-              enabled: !_loading,
+              enabled: !_busy,
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -215,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (kIsWeb)
                   InkWell(
                     borderRadius: BorderRadius.circular(8),
-                    onTap: _loading
+                    onTap: _busy
                         ? null
                         : () => auth.rememberSession = !auth.rememberSession,
                     child: Row(
@@ -223,7 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Checkbox(
                           value: auth.rememberSession,
-                          onChanged: _loading
+                          onChanged: _busy
                               ? null
                               : (v) => auth.rememberSession = v ?? true,
                         ),
@@ -235,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 else
                   const SizedBox.shrink(),
                 TextButton(
-                  onPressed: _loading ? null : _openForgot,
+                  onPressed: _busy ? null : _openForgot,
                   child: const Text('¿Olvidaste tu contraseña?'),
                 ),
               ],
@@ -246,32 +271,16 @@ class _LoginScreenState extends State<LoginScreen> {
               label: 'Iniciar sesión',
               icon: Icons.login_rounded,
               loading: _loading,
-              onPressed: _submit,
+              onPressed: _googleBusy ? null : _submit,
             ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                const Expanded(child: Divider()),
-                Flexible(
-                  flex: 3,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      '¿Aún no tienes cuenta?',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ),
-                const Expanded(child: Divider()),
-              ],
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
+            LabeledDivider(text: '¿Aún no tienes cuenta?'),
+            const SizedBox(height: 16),
             SecondaryButton(
               key: const Key('login_register'),
               label: 'Crear cuenta',
               icon: Icons.person_add_alt_1_outlined,
-              onPressed: _loading ? null : _openRegister,
+              onPressed: _busy ? null : _openRegister,
             ),
             const SizedBox(height: 28),
             Text(
@@ -300,6 +309,7 @@ class _FormCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: context.palette.border),
         boxShadow: AppShadows.soft(context),
       ),
       child: child,
@@ -307,65 +317,72 @@ class _FormCard extends StatelessWidget {
   }
 }
 
-/// Panel ilustrativo de la izquierda en pantallas grandes, dibujado con
-/// Flutter (sin imágenes externas).
+/// Panel de bienvenida (escritorio): verde oliva oscuro, sin imágenes.
 class _BrandPanel extends StatelessWidget {
   const _BrandPanel();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.navy, Color(0xFF2A2F8F), AppColors.violet],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+    final palette = context.palette;
+    final fg = palette.onSidebar;
+
+    return ColoredBox(
+      color: palette.sidebar,
       child: Stack(
         children: [
           Positioned(
-            top: -120,
-            right: -80,
-            child: _Circle(size: 340, opacity: 0.08),
+            top: -140,
+            right: -120,
+            child: _Ring(size: 380, color: fg.withValues(alpha: 0.06)),
           ),
           Positioned(
-            bottom: -140,
-            left: -100,
-            child: _Circle(size: 380, opacity: 0.06),
+            bottom: -160,
+            left: -110,
+            child: _Ring(size: 420, color: fg.withValues(alpha: 0.05)),
           ),
           Padding(
             padding: const EdgeInsets.all(56),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const AppLogo(size: 44, nameColor: Colors.white),
+                AppLogo(size: 40, inverted: true, nameColor: fg),
                 const Spacer(),
-                const _PreviewCard(),
-                const SizedBox(height: 40),
-                const Text(
-                  'Organiza tu trabajo\ncon fluidez.',
+                Container(
+                  width: 36,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: palette.accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Te damos la\nbienvenida.',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 38,
-                    height: 1.15,
-                    fontWeight: FontWeight.w800,
+                    color: fg,
+                    fontSize: 40,
+                    height: 1.12,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: -1,
                   ),
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  AppConstants.appTagline,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    fontSize: 16,
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  child: Text(
+                    AppConstants.appTagline,
+                    style: TextStyle(
+                      color: fg.withValues(alpha: 0.72),
+                      fontSize: 16,
+                      height: 1.5,
+                    ),
                   ),
                 ),
                 const Spacer(),
                 Text(
                   '© ${DateTime.now().year} ${AppConstants.appName}',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: fg.withValues(alpha: 0.45),
                     fontSize: 12,
                   ),
                 ),
@@ -378,11 +395,11 @@ class _BrandPanel extends StatelessWidget {
   }
 }
 
-class _Circle extends StatelessWidget {
-  const _Circle({required this.size, required this.opacity});
+class _Ring extends StatelessWidget {
+  const _Ring({required this.size, required this.color});
 
   final double size;
-  final double opacity;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -391,91 +408,8 @@ class _Circle extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withValues(alpha: opacity * 2),
-          width: 1.5,
-        ),
-        color: Colors.white.withValues(alpha: opacity),
-      ),
-    );
-  }
-}
-
-/// Tarjeta decorativa que sugiere un panel de trabajo.
-class _PreviewCard extends StatelessWidget {
-  const _PreviewCard();
-
-  @override
-  Widget build(BuildContext context) {
-    Widget bar(double width, double alpha) => Container(
-      width: width,
-      height: 10,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: alpha),
-        borderRadius: BorderRadius.circular(6),
-      ),
-    );
-
-    return ExcludeSemantics(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 360),
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.insights_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [bar(120, 0.55), const SizedBox(height: 6), bar(80, 0.3)],
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 64,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final h in [0.35, 0.55, 0.45, 0.8, 0.6, 0.95, 0.7])
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: FractionallySizedBox(
-                          heightFactor: h,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.35),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        border: Border.all(color: color, width: 1.2),
+        color: color.withValues(alpha: color.a * 0.6),
       ),
     );
   }

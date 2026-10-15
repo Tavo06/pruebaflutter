@@ -24,6 +24,10 @@ enum AuthStatus {
   /// Correo verificado, falta crear la contraseña definitiva.
   pendingPassword,
 
+  /// Cuenta de Google sin datos personales (DNI, fecha, teléfono): debe
+  /// completarlos antes de entrar al dashboard.
+  pendingProfile,
+
   /// Correo verificado y registro completo: acceso al dashboard.
   authenticated,
 }
@@ -134,7 +138,11 @@ class AuthProvider extends ChangeNotifier {
         verified = _auth.currentUser?.emailVerified ?? false;
       }
     }
-    final profile = await _users.fetchProfile(user.uid);
+    var profile = await _users.fetchProfile(user.uid);
+    if (profile == null && AuthService.isGoogleUser(user)) {
+      profile = await _createGoogleProfile(user, verified: verified);
+      if (profile == null) return;
+    }
     if (profile == null) {
       await _auth.signOut();
       _setUnauthenticated(
@@ -149,7 +157,15 @@ class AuthProvider extends ChangeNotifier {
     _profile = profile;
     _handledUid = user.uid;
     _handledOnce = true;
-    if (!verified) {
+    if (!profile.registroCompleto && !profile.tieneDatosPersonales) {
+      // Perfil iniciado con Google: faltan los datos personales.
+      if (!verified) {
+        await _auth.signOut();
+        _setUnauthenticated(flash: _unverifiedGoogleFlash);
+        return;
+      }
+      _status = AuthStatus.pendingProfile;
+    } else if (!verified) {
       _status = AuthStatus.pendingVerification;
     } else if (!profile.registroCompleto) {
       _status = AuthStatus.pendingPassword;
@@ -157,6 +173,62 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.authenticated;
     }
     notifyListeners();
+  }
+
+  static const _unverifiedGoogleFlash = FlashMessage(
+    'Google no confirmó la verificación de este correo. Usa otra cuenta o '
+    'regístrate con tu correo electrónico.',
+    FlashType.error,
+  );
+
+  /// Primer acceso con Google: crea el perfil inicial solo con el nombre y el
+  /// correo del proveedor. Devuelve `null` si cerró la sesión.
+  Future<UserProfile?> _createGoogleProfile(
+    User user, {
+    required bool verified,
+  }) async {
+    final email = user.email;
+    if (!verified || email == null) {
+      await _auth.signOut();
+      _setUnauthenticated(flash: _unverifiedGoogleFlash);
+      return null;
+    }
+    final (nombre, apellido) = splitDisplayName(user.displayName);
+    try {
+      await _users.createGoogleProfile(
+        uid: user.uid,
+        correo: email,
+        nombre: nombre,
+        apellido: apellido,
+      );
+      return await _users.fetchProfile(user.uid);
+    } on AppException {
+      throw const AppException(
+        'Iniciaste sesión con Google, pero no pudimos crear tu perfil. '
+        'Inténtalo de nuevo más tarde.',
+      );
+    }
+  }
+
+  /// Separa el nombre visible de Google en nombre y apellido. Solo es una
+  /// sugerencia: el usuario lo revisa al completar su perfil.
+  static (String, String) splitDisplayName(String? displayName) {
+    final parts = (displayName ?? '')
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    String clip(String v) => v.length > AppConstants.maxNameLength
+        ? v.substring(0, AppConstants.maxNameLength)
+        : v;
+    if (parts.isEmpty) return ('', '');
+    if (parts.length == 1) return (clip(parts.first), '');
+    // «Nombre Apellido(s)»; con 4 o más palabras se asumen dos nombres.
+    final split = parts.length >= 4 ? 2 : 1;
+    return (
+      clip(parts.take(split).join(' ')),
+      clip(parts.skip(split).join(' ')),
+    );
   }
 
   void _setUnauthenticated({FlashMessage? flash}) {
@@ -201,6 +273,64 @@ class AuthProvider extends ChangeNotifier {
         _setUnauthenticated();
         throw AppException.from(e);
       }
+    });
+  }
+
+  /// Acceso o alta con Google (mismo flujo desde el login y el registro).
+  ///
+  /// Devuelve `false` si el usuario canceló el selector de cuenta. Tras
+  /// autenticar, recupera el perfil del UID o crea uno inicial y decide el
+  /// destino: dashboard o «completa tu perfil».
+  Future<bool> signInWithGoogle() {
+    return _guard(() async {
+      final user = await _auth.signInWithGoogle(remember: rememberSession);
+      if (user == null) return false;
+      _lastEmail = user.email;
+      try {
+        await _evaluate(user, reload: true);
+      } catch (e) {
+        await _auth.signOut();
+        _setUnauthenticated();
+        throw AppException.from(e);
+      }
+      return true;
+    });
+  }
+
+  /// Interrumpe un acceso con Google en curso (navegador en Windows).
+  void cancelGoogleSignIn() => _auth.cancelGoogleSignIn();
+
+  bool get googleRunsOutsideApp => _auth.googleRunsOutsideApp;
+
+  /// `true` si la sesión actual tiene Google como proveedor.
+  bool get isGoogleAccount {
+    final user = _auth.currentUser;
+    return user != null && AuthService.isGoogleUser(user);
+  }
+
+  /// Completa un perfil iniciado con Google y da acceso al dashboard.
+  Future<void> completePendingProfile(RegistrationData data) {
+    return _guard(() async {
+      final user = _auth.currentUser;
+      if (user == null || _status != AuthStatus.pendingProfile) {
+        throw const AppException(
+          'Tu sesión ha finalizado. Inicia sesión de nuevo.',
+        );
+      }
+      // El estado de verificación se consulta a Firebase, no a la interfaz.
+      final verified = await _auth.reloadAndCheckVerified();
+      if (!verified) {
+        throw const AppException('Tu correo aún no está verificado.');
+      }
+      await _users.completeGoogleProfile(uid: user.uid, data: data);
+      _profile = await _users.fetchProfile(user.uid);
+      if (_profile?.registroCompleto != true) {
+        throw const AppException(
+          'No pudimos confirmar tus datos. Inténtalo de nuevo.',
+        );
+      }
+      _status = AuthStatus.authenticated;
+      notifyListeners();
     });
   }
 
@@ -360,18 +490,25 @@ class AuthProvider extends ChangeNotifier {
   // Perfil
   // ---------------------------------------------------------------------------
 
-  Future<void> updateNames({
+  /// Guarda los datos editables. Si [telefono] es `null` no se modifica.
+  Future<void> updateProfileData({
     required String nombre,
     required String apellido,
+    String? telefono,
   }) async {
     final profile = _profile;
     if (profile == null) return;
-    await _users.updateNames(
+    await _users.updateProfileData(
       uid: profile.uid,
       nombre: nombre,
       apellido: apellido,
+      telefono: telefono,
     );
-    _profile = profile.copyWith(nombre: nombre, apellido: apellido);
+    _profile = profile.copyWith(
+      nombre: nombre,
+      apellido: apellido,
+      telefono: telefono,
+    );
     notifyListeners();
   }
 

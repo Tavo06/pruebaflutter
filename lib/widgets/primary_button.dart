@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme/app_colors.dart';
-import '../core/theme/app_theme.dart';
-
-/// Botón principal con degradado discreto y estado de carga.
+/// Botón principal sobrio (verde oliva sólido) con estado de carga.
 ///
 /// Mientras [loading] es `true` el botón ignora pulsaciones, evitando envíos
-/// repetidos.
+/// repetidos. El estilo viene de `filledButtonTheme` en `app_theme.dart`.
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
@@ -25,19 +22,17 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = onPressed != null && !loading;
-    final radius = BorderRadius.circular(AppRadius.sm);
-
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
     final content = AnimatedSwitcher(
       duration: const Duration(milliseconds: 180),
       child: loading
-          ? const SizedBox(
-              key: ValueKey('loading'),
-              width: 22,
-              height: 22,
+          ? SizedBox(
+              key: const ValueKey('loading'),
+              width: 20,
+              height: 20,
               child: CircularProgressIndicator(
-                strokeWidth: 2.4,
-                color: Colors.white,
+                strokeWidth: 2.2,
+                color: onPrimary,
               ),
             )
           : Row(
@@ -45,59 +40,25 @@ class PrimaryButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 20, color: Colors.white),
+                  Icon(icon, size: 19),
                   const SizedBox(width: 8),
                 ],
-                Flexible(
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
+                Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
               ],
             ),
     );
 
     return Semantics(
       button: true,
-      enabled: enabled,
+      enabled: onPressed != null && !loading,
       label: loading ? '$label, procesando' : label,
       excludeSemantics: true,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 150),
-        opacity: enabled || loading ? 1 : 0.5,
-        child: Container(
-          width: expand ? double.infinity : null,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: AppColors.brandGradient,
-            borderRadius: radius,
-            boxShadow: enabled
-                ? [
-                    BoxShadow(
-                      color: AppColors.violet.withValues(alpha: 0.22),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              borderRadius: radius,
-              onTap: enabled ? onPressed : null,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Center(child: content),
-              ),
-            ),
-          ),
+      child: SizedBox(
+        width: expand ? double.infinity : null,
+        child: FilledButton(
+          // Durante la carga se mantiene el color pleno pero sin acción.
+          onPressed: onPressed == null ? null : (loading ? () {} : onPressed),
+          child: content,
         ),
       ),
     );

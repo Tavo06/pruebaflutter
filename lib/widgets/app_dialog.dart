@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../core/constants/breakpoints.dart';
-import '../core/theme/app_colors.dart';
 import '../core/theme/app_theme.dart';
 
 /// Abre un modal adaptable:
@@ -34,7 +33,7 @@ Future<T?> showAppModal<T>({
     context: context,
     barrierDismissible: dismissible,
     barrierLabel: 'Cerrar',
-    barrierColor: AppColors.navy.withValues(alpha: 0.45),
+    barrierColor: context.palette.sidebar.withValues(alpha: 0.5),
     transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (ctx, _, _) {
       final size = MediaQuery.sizeOf(ctx);
@@ -101,7 +100,7 @@ class AppModalFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isMobile = Breakpoints.isMobile(context);
-    final color = iconColor ?? AppColors.primary;
+    final color = iconColor ?? theme.colorScheme.primary;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -116,7 +115,9 @@ class AppModalFrame extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: iconColor == null
+                      ? context.palette.subtleFill
+                      : color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Icon(icon, color: color),
@@ -181,7 +182,10 @@ Future<bool> showConfirmDialog({
         ),
         FilledButton(
           style: destructive
-              ? FilledButton.styleFrom(backgroundColor: AppColors.error)
+              ? FilledButton.styleFrom(
+                  backgroundColor: Theme.of(ctx).colorScheme.error,
+                  foregroundColor: Theme.of(ctx).colorScheme.onError,
+                )
               : null,
           onPressed: () => Navigator.of(ctx).pop(true),
           child: Text(confirmLabel),

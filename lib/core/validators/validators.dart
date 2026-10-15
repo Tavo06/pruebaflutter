@@ -73,6 +73,22 @@ class Validators {
     return null;
   }
 
+  /// Exactamente nueve dígitos numéricos, sin prefijos, espacios ni símbolos.
+  static final RegExp phoneRegex = RegExp(r'^[0-9]{9}$');
+
+  static String? phone(String? value) {
+    final v = value ?? '';
+    if (v.trim().isEmpty) return 'Ingresa tu número de teléfono.';
+    if (!RegExp(r'^[0-9]+$').hasMatch(v)) {
+      return 'El número de teléfono solo puede contener números.';
+    }
+    if (!phoneRegex.hasMatch(v)) {
+      return 'El número de teléfono debe tener exactamente '
+          '${AppConstants.phoneLength} dígitos.';
+    }
+    return null;
+  }
+
   /// Valida la fecha de nacimiento. [now] permite fijar la fecha en pruebas.
   static String? birthDate(DateTime? value, {DateTime? now}) {
     if (value == null) return 'Selecciona tu fecha de nacimiento.';

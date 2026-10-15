@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/app_exception.dart';
 import '../../core/validators/validators.dart';
@@ -66,7 +65,7 @@ class _CreatePasswordModalState extends State<CreatePasswordModal> {
       icon: Icons.lock_outline_rounded,
       title: 'Crea tu contraseña',
       subtitle: 'Tu correo está verificado. Elige una contraseña segura.',
-      iconColor: AppColors.violet,
+      iconColor: context.palette.accent,
       onClose: _loading ? () {} : null,
       child: Form(
         key: _formKey,
@@ -135,7 +134,7 @@ class _StrengthBar extends StatelessWidget {
     final palette = context.palette;
     final (double value, Color color, String label) = switch (strength) {
       PasswordStrength.empty => (0, palette.border, 'Sin contraseña'),
-      PasswordStrength.weak => (0.33, AppColors.error, 'Débil'),
+      PasswordStrength.weak => (0.33, Theme.of(context).colorScheme.error, 'Débil'),
       PasswordStrength.medium => (0.66, palette.warning, 'Aceptable'),
       PasswordStrength.strong => (1, palette.success, 'Fuerte'),
     };

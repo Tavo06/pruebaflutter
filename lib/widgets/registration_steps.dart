@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme/app_colors.dart';
 import '../core/theme/app_theme.dart';
 
 /// Indicador de progreso del registro: Datos → Verificación → Contraseña.
@@ -22,7 +21,7 @@ class RegistrationSteps extends StatelessWidget {
       final color = done
           ? palette.success
           : active
-          ? AppColors.primary
+          ? Theme.of(context).colorScheme.primary
           : palette.textSecondary;
       children.add(
         Expanded(

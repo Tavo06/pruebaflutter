@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Herramientas de Node (pruebas de reglas)
+node_modules/
+# Copia generada por npm test
+tools/firestore_rules_test/firestore.rules

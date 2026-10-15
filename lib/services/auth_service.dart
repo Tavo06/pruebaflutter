@@ -4,8 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/utils/app_exception.dart';
+import 'google/google_sign_in_delegate.dart';
 
 /// Operaciones de Firebase Authentication, separadas de la interfaz.
+///
+/// Es el ÚNICO punto de acceso a la autenticación por correo y por Google.
+/// Los botones de Google del login y del registro usan el mismo método
+/// [signInWithGoogle].
 ///
 /// Estrategia de registro (verificar el correo antes de crear la contraseña):
 /// 1. Se crea la cuenta con una contraseña temporal aleatoria que solo vive en
@@ -17,9 +22,14 @@ import '../core/utils/app_exception.dart';
 /// La sesión que Firebase mantiene permite retomar el proceso si se cierra la
 /// aplicación.
 class AuthService {
-  AuthService({FirebaseAuth? auth}) : _auth = auth ?? FirebaseAuth.instance;
+  AuthService({FirebaseAuth? auth, GoogleSignInDelegate? google})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _google = google ?? createGoogleSignInDelegate();
 
   final FirebaseAuth _auth;
+  final GoogleSignInDelegate _google;
+
+  static const String googleProviderId = 'google.com';
 
   /// Contraseña temporal del registro en curso. Solo en memoria.
   String? _tempPassword;
@@ -50,6 +60,39 @@ class AuthService {
       throw AppException.from(e);
     }
   }
+
+  /// Inicia sesión (o crea la cuenta) con Google mediante el mecanismo de la
+  /// plataforma. Devuelve `null` si el usuario cancela el selector.
+  ///
+  /// Si el correo ya tiene una cuenta verificada con contraseña, Firebase
+  /// vincula Google a esa misma cuenta (mismo UID), por lo que nunca se
+  /// duplica el perfil. Si Firebase exige otra acción, se informa al usuario
+  /// con [AppException] y no se reemplaza nada.
+  Future<User?> signInWithGoogle({bool remember = true}) async {
+    try {
+      if (kIsWeb) {
+        await _auth.setPersistence(
+          remember ? Persistence.LOCAL : Persistence.SESSION,
+        );
+      }
+      final cred = await _google.signIn(_auth);
+      return cred?.user;
+    } catch (e) {
+      final error = AppException.google(e);
+      if (error.isCancellation) return null;
+      throw error;
+    }
+  }
+
+  /// Interrumpe un acceso con Google que se está completando fuera de la app.
+  void cancelGoogleSignIn() => _google.cancel();
+
+  /// `true` si el acceso con Google se completa en el navegador del sistema.
+  bool get googleRunsOutsideApp => _google.runsOutsideApp;
+
+  /// `true` si la cuenta tiene Google como proveedor vinculado.
+  static bool isGoogleUser(User user) =>
+      user.providerData.any((p) => p.providerId == googleProviderId);
 
   /// Crea la cuenta pendiente con una contraseña temporal y envía el correo
   /// de verificación de Firebase.
@@ -230,6 +273,7 @@ class AuthService {
   Future<void> signOut() async {
     _tempPassword = null;
     await _auth.signOut();
+    await _google.signOut();
   }
 
   Future<void> _reauthenticateWithTemp(User user) async {

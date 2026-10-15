@@ -15,6 +15,7 @@ class AppConstants {
   /// Longitudes de los campos del registro.
   static const int maxNameLength = 50;
   static const int dniLength = 8;
+  static const int phoneLength = 9;
 }
 
 /// Nombres de colecciones de Cloud Firestore.

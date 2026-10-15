@@ -55,6 +55,33 @@ void main() {
     });
   });
 
+  group('teléfono', () {
+    test('vacío', () {
+      expect(Validators.phone(null), 'Ingresa tu número de teléfono.');
+      expect(Validators.phone(''), 'Ingresa tu número de teléfono.');
+      expect(Validators.phone('   '), 'Ingresa tu número de teléfono.');
+    });
+
+    test('ocho y diez dígitos se rechazan', () {
+      expect(Validators.phone('98765432'), contains('exactamente 9'));
+      expect(Validators.phone('9876543210'), contains('exactamente 9'));
+    });
+
+    test('letras, espacios, guiones y símbolos se rechazan', () {
+      expect(Validators.phone('98765432a'), contains('solo puede contener'));
+      expect(Validators.phone('987 654 321'), contains('solo puede contener'));
+      expect(Validators.phone('987-654-321'), contains('solo puede contener'));
+      expect(Validators.phone('+51987654'), contains('solo puede contener'));
+      expect(Validators.phone('98765432#'), contains('solo puede contener'));
+    });
+
+    test('nueve dígitos es válido, sin exigir prefijo ni operador', () {
+      expect(Validators.phone('987654321'), isNull);
+      expect(Validators.phone('012345678'), isNull);
+      expect(Validators.phoneRegex.pattern, r'^[0-9]{9}$');
+    });
+  });
+
   group('fecha de nacimiento', () {
     final now = DateTime(2026, 10, 13);
 

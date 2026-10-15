@@ -93,8 +93,8 @@
 //         ios: false
 //         web:
 //           generate: true
-//           background_color: "#F5F7FF"
-//           theme_color: "#3478F6"
+//           background_color: "#F7F8F3"
+//           theme_color: "#687447"
 //         windows:
 //           generate: true
 //           icon_size: 256
@@ -114,24 +114,19 @@
 //
 //  a) Paleta de marca (un solo lugar): lib/core/theme/app_colors.dart
 //
-//       static const Color primary = Color(0xFF16A34A);   // verde en vez de azul
-//       static const Color violet  = Color(0xFF0D9488);   // segundo color del degradado
-//       static const Color navy    = Color(0xFF0F2E1D);   // barra lateral
-//       static const Color background = Color(0xFFF4FBF6);
+//       static const Color olive      = Color(0xFF687447);  // color principal
+//       static const Color oliveDark  = Color(0xFF414B2C);  // barra lateral y login
+//       static const Color oliveSoft  = Color(0xFFE7EBD9);  // rellenos suaves
+//       static const Color terracotta = Color(0xFFC87955);  // acento puntual
 //
-//     El formato es 0xFF + código hexadecimal (#16A34A -> 0xFF16A34A).
-//     Los botones principales, el banner y el logo usan `brandGradient`.
-//     Si quieren un color plano en lugar de degradado:
-//
-//       static const LinearGradient brandGradient = LinearGradient(
-//         colors: [primary, primary],
-//       );
+//     El formato es 0xFF + código hexadecimal (#687447 -> 0xFF687447).
+//     No hay degradados: los botones usan el color principal sólido.
 //
 //  b) Colores del tema oscuro: los `dark...` de app_colors.dart y
 //     `AppPalette.dark` en lib/core/theme/app_theme.dart.
 //
 //  c) Bordes redondeados y sombras: clases AppRadius y AppShadows en
-//     lib/core/theme/app_theme.dart  (sm = 12, md = 14, lg = 18).
+//     lib/core/theme/app_theme.dart  (sm = 10, md = 12, lg = 16).
 //
 //  d) Tema por defecto (hoy es claro). En lib/providers/theme_provider.dart,
 //     método _read, cambia el valor de `orElse`:
@@ -144,13 +139,14 @@
 //  e) Usar los colores dentro de tus pantallas (así cambian solos con el tema):
 //
 //       final theme = Theme.of(context);
-//       theme.colorScheme.primary        // azul principal
+//       theme.colorScheme.primary        // verde oliva principal
 //       theme.colorScheme.surface        // fondo de tarjetas
 //       theme.colorScheme.onSurface      // texto principal
 //       context.palette.textSecondary    // texto secundario
 //       context.palette.success          // verde de éxito
 //       context.palette.warning          // advertencia
-//       AppColors.error                  // rojo de error
+//       theme.colorScheme.error          // rojo de error
+//       context.palette.accent           // terracota (detalles, no errores)
 //
 //     Evita escribir colores fijos como Colors.black en los textos: en el tema
 //     oscuro no se verían.
@@ -221,7 +217,7 @@
 //  c) Mensajes de error de Firebase en español: lib/core/utils/app_exception.dart
 //
 //  d) Textos de las pantallas: están en cada archivo de lib/screens/.
-//     Ejemplo: el saludo del dashboard está en _WelcomeBanner
+//     Ejemplo: el saludo del dashboard está en _WelcomeHeader
 //     (lib/screens/home/home_screen.dart): '¡Hola, $name!'.
 //
 // =============================================================================
@@ -320,7 +316,9 @@
 //
 //       final perfil = context.watch<AuthProvider>().profile!;
 //       perfil.uid  perfil.nombre  perfil.apellido  perfil.nombreCompleto
-//       perfil.dni  perfil.correo  perfil.fechaNacimiento
+//       perfil.dni  perfil.correo  perfil.fechaNacimiento  perfil.telefono
+//       (dni, fechaNacimiento y telefono pueden ser null en perfiles antiguos
+//        o de Google: usa `perfil.telefono ?? '—'`)
 //
 // =============================================================================
 //  10. FORMULARIO CON VALIDACIONES
@@ -670,54 +668,28 @@
 //       NumberFormat.currency(locale: 'es_PE', symbol: 'S/ ').format(monto)
 //
 // =============================================================================
-//  14. AGREGAR UN CAMPO NUEVO AL REGISTRO (ejemplo: teléfono)
+//  14. AGREGAR UN CAMPO NUEVO AL REGISTRO
 // =============================================================================
 //
-//  Toca 5 lugares, en este orden:
+//  El teléfono ya está implementado y sirve de modelo. Para otro campo (p. ej.
+//  «dirección») repite los mismos lugares que usa `telefono`:
 //
-//  1) Validador  lib/core/validators/validators.dart
-//       static String? telefono(String? v) {
-//         final t = (v ?? '').trim();
-//         if (t.isEmpty) return 'Ingresa tu teléfono.';
-//         if (!RegExp(r'^9\d{8}$').hasMatch(t)) return 'Ingresa un celular de 9 dígitos.';
-//         return null;
-//       }
+//  1) Validador      lib/core/validators/validators.dart  (Validators.phone)
+//  2) Campo          lib/widgets/personal_data_fields.dart (PhoneField)
+//  3) Modelo         lib/models/user_profile.dart: UserProfile (nullable, para
+//                    documentos antiguos) y RegistrationData
+//  4) Formularios    register_modal.dart, complete_profile_screen.dart y
+//                    my_data_screen.dart
+//  5) Servicio       lib/services/user_service.dart: createPendingProfile,
+//                    completeGoogleProfile y updateProfileData
+//  6) Reglas         firestore.rules: emailProfileKeys(), editableKeys() y un
+//                    validador como validPhone(). Prueba con
+//                    tools/firestore_rules_test y despliega:
+//                      firebase deploy --only firestore:rules
 //
-//  2) Modelo  lib/models/user_profile.dart
-//       - Agrega `final String telefono;` a RegistrationData y a UserProfile.
-//       - En UserProfile.fromMap:  telefono: map['telefono'] as String? ?? '',
-//
-//  3) Formulario  lib/screens/auth/register_modal.dart
-//       - Controller: final _telefonoCtrl = TextEditingController(); (y dispose)
-//       - Campo (copia el del DNI y cambia):
-//           CustomTextField(
-//             label: 'Teléfono',
-//             icon: Icons.phone_outlined,
-//             controller: _telefonoCtrl,
-//             keyboardType: TextInputType.phone,
-//             inputFormatters: [FilteringTextInputFormatter.digitsOnly,
-//                               LengthLimitingTextInputFormatter(9)],
-//             validator: Validators.telefono,
-//           ),
-//       - En _submit, dentro de RegistrationData(...):
-//           telefono: _telefonoCtrl.text.trim(),
-//
-//  4) Servicio  lib/services/user_service.dart, en createPendingProfile:
-//           'telefono': data.telefono,
-//
-//  5) Reglas  firestore.rules:
-//       - Agrega 'telefono' a la lista de profileKeys().
-//       - En `allow create` de users:
-//           && request.resource.data.telefono.matches('^9[0-9]{8}$')
-//       - Si debe poder editarse en «Mis datos», agrégalo también a la lista
-//         de hasOnly([...]) del `allow update`.
-//       - Despliega:  firebase deploy --only firestore:rules
-//
-//  IMPORTANTE: los usuarios ya registrados no tienen el campo. Por eso fromMap
-//  usa `?? ''`. Si las reglas lo exigen, esos usuarios solo podrán actualizar
-//  su perfil después de completarlo.
-//
-//  Mostrarlo: en lib/screens/profile/profile_screen.dart agrega otro _InfoTile.
+//  IMPORTANTE: los usuarios ya registrados no tienen el campo. Léelo como
+//  nullable (`map['campo'] as String?`) y no lo exijas en las reglas de
+//  actualización salvo cuando se escriba.
 //
 // =============================================================================
 //  15. ROLES (USUARIO / ADMINISTRADOR)

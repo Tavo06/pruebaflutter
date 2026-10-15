@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/breakpoints.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
-import '../../exercises/finanzas/screens/historial_view.dart';
-import '../../exercises/finanzas/screens/nuevo_movimiento_view.dart';
-import '../../exercises/finanzas/screens/resumen_view.dart';
 import '../../models/user_profile.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/responsive_layout.dart';
 import '../profile/my_data_screen.dart';
@@ -22,28 +19,23 @@ import 'exercise_module.dart';
 /// [_HomeScreenState._buildSection]. El orden es el orden del menú.
 enum HomeSection {
   inicio('Inicio', Icons.space_dashboard_outlined, Icons.space_dashboard),
-  // Secciones del ejercicio de finanzas.
-  nuevo(
-    'Nuevo movimiento',
-    Icons.add_circle_outline_rounded,
-    Icons.add_circle_rounded,
-    shortLabel: 'Nuevo',
+  perfil(
+    'Mi perfil',
+    Icons.person_outline_rounded,
+    Icons.person_rounded,
+    shortLabel: 'Perfil',
   ),
-  historial('Historial', Icons.receipt_long_outlined, Icons.receipt_long),
-  resumen('Resumen', Icons.pie_chart_outline_rounded, Icons.pie_chart_rounded),
-  // Secciones de la cuenta.
-  perfil('Mi perfil', Icons.person_outline_rounded, Icons.person_rounded),
   datos(
     'Mis datos',
     Icons.badge_outlined,
     Icons.badge_rounded,
-    inBottomBar: false,
+    shortLabel: 'Datos',
   ),
   configuracion(
     'Configuración',
     Icons.settings_outlined,
     Icons.settings,
-    inBottomBar: false,
+    shortLabel: 'Ajustes',
   );
 
   const HomeSection(
@@ -51,7 +43,6 @@ enum HomeSection {
     this.icon,
     this.selectedIcon, {
     this.shortLabel,
-    this.inBottomBar = true,
   });
 
   final String label;
@@ -61,12 +52,9 @@ enum HomeSection {
   /// Texto más corto para la barra inferior del móvil.
   final String? shortLabel;
 
-  /// En móvil caben ~5 secciones abajo; las demás se abren desde el menú de
-  /// usuario (avatar, arriba a la derecha).
-  final bool inBottomBar;
-
-  static List<HomeSection> get bottomBar =>
-      values.where((s) => s.inBottomBar).toList();
+  /// Secciones de la barra inferior del móvil (caben bien hasta 5). Si añades
+  /// más, filtra aquí las que solo deban abrirse desde el menú de usuario.
+  static List<HomeSection> get bottomBar => values;
 }
 
 /// Estructura permanente del área privada: navegación, barra superior y
@@ -75,7 +63,7 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   /// Cambia de sección desde cualquier vista hija, por ejemplo:
-  ///   HomeScreen.irA(context, HomeSection.historial);
+  ///   HomeScreen.irA(context, HomeSection.datos);
   static void irA(BuildContext context, HomeSection section) =>
       context.findAncestorStateOfType<_HomeScreenState>()?._select(section);
 
@@ -94,12 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (_section) {
       case HomeSection.inicio:
         return _DashboardView(profile: profile);
-      case HomeSection.nuevo:
-        return const NuevoMovimientoView();
-      case HomeSection.historial:
-        return const HistorialView();
-      case HomeSection.resumen:
-        return const ResumenView();
       case HomeSection.perfil:
         return ProfileScreen(profile: profile);
       case HomeSection.datos:
@@ -136,24 +118,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (size == ScreenSize.mobile) {
           final items = HomeSection.bottomBar;
-          // Las secciones que no están abajo (Mis datos, Configuración)
-          // marcan «Mi perfil», que es la sección de la cuenta.
           final index = items.contains(_section)
               ? items.indexOf(_section)
               : items.indexOf(HomeSection.perfil);
           return Scaffold(
             body: body,
-            bottomNavigationBar: NavigationBar(
-              selectedIndex: index,
-              onDestinationSelected: (i) => _select(items[i]),
-              destinations: [
-                for (final s in items)
-                  NavigationDestination(
-                    icon: Icon(s.icon),
-                    selectedIcon: Icon(s.selectedIcon),
-                    label: s.shortLabel ?? s.label,
-                  ),
-              ],
+            bottomNavigationBar: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: context.palette.border)),
+              ),
+              child: NavigationBar(
+                selectedIndex: index,
+                onDestinationSelected: (i) => _select(items[i]),
+                destinations: [
+                  for (final s in items)
+                    NavigationDestination(
+                      icon: Icon(s.icon),
+                      selectedIcon: Icon(s.selectedIcon),
+                      label: s.shortLabel ?? s.label,
+                    ),
+                ],
+              ),
             ),
           );
         }
@@ -195,10 +180,12 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final fg = palette.onSidebar;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: expanded ? 252 : 84,
-      color: context.palette.sidebar,
+      width: expanded ? 248 : 80,
+      color: palette.sidebar,
       child: SafeArea(
         right: false,
         child: Padding(
@@ -210,13 +197,14 @@ class _Sidebar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: EdgeInsets.only(left: expanded ? 8 : 0, bottom: 28),
+                padding: EdgeInsets.only(left: expanded ? 8 : 0, bottom: 32),
                 child: Align(
                   alignment: expanded ? Alignment.centerLeft : Alignment.center,
                   child: AppLogo(
-                    size: 38,
+                    size: 36,
                     showName: expanded,
-                    nameColor: Colors.white,
+                    inverted: true,
+                    nameColor: fg,
                   ),
                 ),
               ),
@@ -226,7 +214,7 @@ class _Sidebar extends StatelessWidget {
                   child: Text(
                     'MENÚ',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.45),
+                      color: fg.withValues(alpha: 0.45),
                       fontSize: 11,
                       letterSpacing: 1.2,
                       fontWeight: FontWeight.w600,
@@ -242,7 +230,7 @@ class _Sidebar extends StatelessWidget {
                   onTap: () => onSelect(s),
                 ),
               const Spacer(),
-              Divider(color: Colors.white.withValues(alpha: 0.1)),
+              Divider(color: fg.withValues(alpha: 0.12)),
               const SizedBox(height: 8),
               _SidebarItem(
                 key: const Key('sidebar_logout'),
@@ -278,21 +266,23 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : Colors.white.withValues(alpha: 0.7);
+    final palette = context.palette;
+    final base = palette.onSidebar;
+    final fg = selected ? base : base.withValues(alpha: 0.68);
     final item = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadius.sm),
           onTap: onTap,
-          hoverColor: Colors.white.withValues(alpha: 0.06),
+          hoverColor: base.withValues(alpha: 0.06),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            height: 46,
-            padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0),
+            height: 44,
+            padding: EdgeInsets.symmetric(horizontal: expanded ? 12 : 0),
             decoration: BoxDecoration(
-              gradient: selected ? AppColors.brandGradient : null,
+              color: selected ? base.withValues(alpha: 0.12) : null,
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Row(
@@ -300,7 +290,18 @@ class _SidebarItem extends StatelessWidget {
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
-                Icon(icon, color: fg, size: 22),
+                if (expanded)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 3,
+                    height: selected ? 18 : 0,
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                      color: palette.accent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                Icon(icon, color: fg, size: 21),
                 if (expanded) ...[
                   const SizedBox(width: 12),
                   Expanded(
@@ -358,12 +359,13 @@ class _MainArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final error = theme.colorScheme.error;
     return SafeArea(
       bottom: false,
       child: Column(
         children: [
           Container(
-            height: 68,
+            height: 64,
             padding: EdgeInsets.symmetric(horizontal: compactUser ? 16 : 28),
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
@@ -384,6 +386,8 @@ class _MainArea extends StatelessWidget {
                     style: theme.textTheme.titleLarge,
                   ),
                 ),
+                const _ThemeToggle(),
+                const SizedBox(width: 4),
                 PopupMenuButton<_UserMenuAction>(
                   key: const Key('user_menu'),
                   tooltip: 'Menú de usuario',
@@ -400,8 +404,8 @@ class _MainArea extends StatelessWidget {
                         onSignOut();
                     }
                   },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
                       value: _UserMenuAction.perfil,
                       child: ListTile(
                         leading: Icon(Icons.person_outline_rounded),
@@ -409,7 +413,7 @@ class _MainArea extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: _UserMenuAction.datos,
                       child: ListTile(
                         leading: Icon(Icons.badge_outlined),
@@ -417,7 +421,7 @@ class _MainArea extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: _UserMenuAction.configuracion,
                       child: ListTile(
                         leading: Icon(Icons.settings_outlined),
@@ -425,18 +429,15 @@ class _MainArea extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    PopupMenuDivider(),
+                    const PopupMenuDivider(),
                     PopupMenuItem(
-                      key: Key('menu_logout'),
+                      key: const Key('menu_logout'),
                       value: _UserMenuAction.salir,
                       child: ListTile(
-                        leading: Icon(
-                          Icons.logout_rounded,
-                          color: AppColors.error,
-                        ),
+                        leading: Icon(Icons.logout_rounded, color: error),
                         title: Text(
                           'Cerrar sesión',
-                          style: TextStyle(color: AppColors.error),
+                          style: TextStyle(color: error),
                         ),
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -447,7 +448,7 @@ class _MainArea extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        UserAvatar(profile: profile, size: 38),
+                        UserAvatar(profile: profile, size: 36),
                         if (!compactUser) ...[
                           const SizedBox(width: 10),
                           ConstrainedBox(
@@ -491,6 +492,24 @@ class _MainArea extends StatelessWidget {
   }
 }
 
+/// Alterna entre tema claro y oscuro desde la barra superior.
+class _ThemeToggle extends StatelessWidget {
+  const _ThemeToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return IconButton(
+      key: const Key('theme_toggle'),
+      tooltip: dark ? 'Usar tema claro' : 'Usar tema oscuro',
+      onPressed: () =>
+          themeProvider.setMode(dark ? ThemeMode.light : ThemeMode.dark),
+      icon: Icon(dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+    );
+  }
+}
+
 /// Avatar con las iniciales del usuario.
 class UserAvatar extends StatelessWidget {
   const UserAvatar({super.key, required this.profile, this.size = 40});
@@ -500,20 +519,21 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        gradient: AppColors.brandGradient,
-        borderRadius: BorderRadius.circular(size * 0.32),
+        color: scheme.primaryContainer,
+        shape: BoxShape.circle,
       ),
       child: Text(
         profile.iniciales,
         style: TextStyle(
-          color: Colors.white,
+          color: scheme.onPrimaryContainer,
           fontWeight: FontWeight.w700,
-          fontSize: size * 0.38,
+          fontSize: size * 0.36,
         ),
       ),
     );
@@ -521,7 +541,7 @@ class UserAvatar extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// Sección «Inicio»: bienvenida + módulo del ejercicio
+// Sección «Inicio»: bienvenida + espacio del ejercicio
 // -----------------------------------------------------------------------------
 
 class _DashboardView extends StatelessWidget {
@@ -533,15 +553,20 @@ class _DashboardView extends StatelessWidget {
   Widget build(BuildContext context) {
     final mobile = Breakpoints.isMobile(context);
     return SingleChildScrollView(
-      padding: EdgeInsets.all(mobile ? 16 : 28),
+      padding: EdgeInsets.all(mobile ? 16 : 32),
       child: MaxWidthBox(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _WelcomeBanner(name: profile.primerNombre),
-            // Contenido reemplazable: aquí se desarrolla cada ejercicio.
-            // Hoy está vacío; al llenarlo, agrega un espacio antes, por ejemplo
-            // SizedBox(height: mobile ? 20 : 28).
+            _WelcomeHeader(name: profile.primerNombre),
+            if (!profile.tieneTelefono) ...[
+              const SizedBox(height: 20),
+              _MissingPhoneNotice(
+                onTap: () => HomeScreen.irA(context, HomeSection.datos),
+              ),
+            ],
+            SizedBox(height: mobile ? 20 : 28),
+            // Contenido reemplazable: ver lib/screens/home/exercise_module.dart.
             const ExerciseModule(),
           ],
         ),
@@ -550,69 +575,70 @@ class _DashboardView extends StatelessWidget {
   }
 }
 
-class _WelcomeBanner extends StatelessWidget {
-  const _WelcomeBanner({required this.name});
+class _WelcomeHeader extends StatelessWidget {
+  const _WelcomeHeader({required this.name});
 
   final String name;
 
   @override
   Widget build(BuildContext context) {
-    final mobile = Breakpoints.isMobile(context);
-    return Container(
-      padding: EdgeInsets.all(mobile ? 20 : 28),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary.withValues(alpha: 0.92),
-            AppColors.violet.withValues(alpha: 0.92),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 28,
+          height: 3,
+          decoration: BoxDecoration(
+            color: context.palette.accent,
+            borderRadius: BorderRadius.circular(2),
+          ),
         ),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        const SizedBox(height: 14),
+        Text('¡Hola, $name!', style: theme.textTheme.headlineMedium),
+        const SizedBox(height: 6),
+        Text(
+          'Bienvenido a tu espacio de trabajo.',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: context.palette.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Aviso discreto para perfiles antiguos que aún no tienen teléfono.
+class _MissingPhoneNotice extends StatelessWidget {
+  const _MissingPhoneNotice({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: palette.subtleFill,
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Row(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '¡Hola, $name!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: mobile ? 22 : 28,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Bienvenido a tu espacio de trabajo.',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.88),
-                    fontSize: mobile ? 14 : 16,
-                  ),
-                ),
-              ],
-            ),
+          Icon(
+            Icons.phone_outlined,
+            size: 20,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
-          if (!mobile)
-            ExcludeSemantics(
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                ),
-                child: const Icon(
-                  Icons.rocket_launch_rounded,
-                  color: Colors.white,
-                  size: 36,
-                ),
-              ),
-            ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text('Añade tu número de teléfono para completar tu perfil.'),
+          ),
+          TextButton(
+            key: const Key('add_phone'),
+            onPressed: onTap,
+            child: const Text('Añadir'),
+          ),
         ],
       ),
     );
