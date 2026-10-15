@@ -5,8 +5,8 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'FlowApp';
-  static const String appTagline = 'Tu espacio de trabajo, siempre en orden.';
+  static const String appName = 'TransporteCalc';
+  static const String appTagline = 'El costo de cada viaje, claro y al instante.';
   static const String appVersion = '1.0.0';
 
   /// Segundos de espera entre reenvíos del correo de verificación.

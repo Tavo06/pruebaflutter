@@ -1,11 +1,11 @@
 {
-    "name": "FlowApp",
-    "short_name": "FlowApp",
+    "name": "TransporteCalc",
+    "short_name": "TransporteCalc",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F7F8F3",
     "theme_color": "#687447",
-    "description": "FlowApp: plantilla Flutter + Firebase.",
+    "description": "TransporteCalc: calculadora del costo de servicios de transporte.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

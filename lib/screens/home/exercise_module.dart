@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../exercises/calculadora_transporte/calculadora_transporte_page.dart';
 
 // =============================================================================
 //  PUNTO DE ENTRADA DEL EJERCICIO
@@ -22,7 +23,7 @@ class ExerciseModule extends StatelessWidget {
   const ExerciseModule({super.key});
 
   @override
-  Widget build(BuildContext context) => const WorkspacePlaceholder();
+  Widget build(BuildContext context) => const CalculadoraTransportePage();
 }
 
 /// Espacio de trabajo vacío: indica dónde se desarrollará el ejercicio.

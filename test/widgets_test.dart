@@ -58,7 +58,10 @@ void main() {
 
       await tester.enterText(find.byKey(const Key('login_email')), 'malo');
       await tester.pumpAndSettle();
-      expect(find.text('Ingresa un correo electrónico válido.'), findsOneWidget);
+      expect(
+        find.text('Ingresa un correo electrónico válido.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('mostrar/ocultar contraseña', (tester) async {
@@ -153,10 +156,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 50));
       });
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('Google no está habilitado'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Google no está habilitado'), findsOneWidget);
     });
 
     testWidgets('Google desde el registro lleva a «Completa tu perfil»', (
@@ -358,7 +358,10 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 50));
       });
       await tester.pumpAndSettle();
-      expect(find.textContaining('Si existe una cuenta asociada'), findsOneWidget);
+      expect(
+        find.textContaining('Si existe una cuenta asociada'),
+        findsOneWidget,
+      );
     });
   });
 
@@ -391,22 +394,29 @@ void main() {
   });
 
   group('Rutas protegidas', () {
-    testWidgets('correo sin verificar muestra la verificación, no el dashboard', (
-      tester,
-    ) async {
-      await setSize(tester, const Size(400, 900));
-      final b = await signedInBackend(verified: false, complete: false);
-      final p = await providerFor(tester, b);
-      await tester.pumpWidget(buildTestApp(p));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'correo sin verificar muestra la verificación, no el dashboard',
+      (tester) async {
+        await setSize(tester, const Size(400, 900));
+        final b = await signedInBackend(verified: false, complete: false);
+        final p = await providerFor(tester, b);
+        await tester.pumpWidget(buildTestApp(p));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Verifica tu correo electrónico'), findsOneWidget);
-      expect(find.text('ana@correo.com'), findsNothing); // dentro de un TextSpan
-      expect(find.textContaining('ana@correo.com', findRichText: true), findsOneWidget);
-      expect(find.textContaining('Reenviar correo en'), findsNothing);
-      expect(find.text('¡Hola, Ana!'), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-    });
+        expect(find.text('Verifica tu correo electrónico'), findsOneWidget);
+        expect(
+          find.text('ana@correo.com'),
+          findsNothing,
+        ); // dentro de un TextSpan
+        expect(
+          find.textContaining('ana@correo.com', findRichText: true),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Reenviar correo en'), findsNothing);
+        expect(find.text('¡Hola, Ana!'), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
 
     testWidgets('verificado sin contraseña abre «Crea tu contraseña»', (
       tester,
@@ -465,7 +475,7 @@ void main() {
       expect(find.text('Datos personales'), findsOneWidget);
     });
 
-    testWidgets('dashboard limpio: espacio de trabajo sin datos ficticios', (
+    testWidgets('dashboard muestra el ejercicio sin datos ficticios', (
       tester,
     ) async {
       await setSize(tester, const Size(1440, 900));
@@ -474,12 +484,9 @@ void main() {
       await tester.pumpWidget(buildTestApp(p));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('workspace_placeholder')), findsOneWidget);
-      expect(find.text('Espacio de trabajo'), findsOneWidget);
-      expect(
-        find.text('Aquí podrás implementar el ejercicio que necesites.'),
-        findsOneWidget,
-      );
+      // El módulo del ejercicio ocupa el espacio de trabajo y empieza vacío.
+      expect(find.byKey(const Key('calculadora_transporte')), findsOneWidget);
+      expect(find.text('Nuevo servicio'), findsOneWidget);
       for (final t in ['Nuevo movimiento', 'Historial', 'Resumen', 'Saldo']) {
         expect(find.textContaining(t), findsNothing);
       }
@@ -519,7 +526,10 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 50));
       });
       await tester.pumpAndSettle();
-      expect(find.text('Tus datos se guardaron correctamente.'), findsOneWidget);
+      expect(
+        find.text('Tus datos se guardaron correctamente.'),
+        findsOneWidget,
+      );
       expect((await b.userDoc('u1'))!['telefono'], '923456789');
       expect((await b.userDoc('u1'))!['dni'], '12345678');
     });
@@ -530,12 +540,16 @@ void main() {
       final p = await providerFor(tester, b);
       await tester.pumpWidget(buildTestApp(p));
       await tester.pumpAndSettle();
-      expect(Theme.of(tester.element(find.byType(HomeScreen))).brightness,
-          Brightness.light);
+      expect(
+        Theme.of(tester.element(find.byType(HomeScreen))).brightness,
+        Brightness.light,
+      );
       await tester.tap(find.byKey(const Key('theme_toggle')));
       await tester.pumpAndSettle();
-      expect(Theme.of(tester.element(find.byType(HomeScreen))).brightness,
-          Brightness.dark);
+      expect(
+        Theme.of(tester.element(find.byType(HomeScreen))).brightness,
+        Brightness.dark,
+      );
     });
   });
 
